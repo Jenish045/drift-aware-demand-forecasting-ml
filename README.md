@@ -6,10 +6,10 @@ The objective of this project is to build a machine learning–oriented demand f
 ---
 
 ## Dataset Description
-This project uses the **Historical Product Demand Dataset** from Kaggle.
+This project uses the **Forecasts for Product Demand** from Kaggle.
 
 **Source:** Kaggle  
-**Dataset Name:** Historical Product Demand Dataset
+**Dataset Name:** Forecasts for Product Demand
 
 ### Dataset Columns
 - `Date` – Date of demand observation
