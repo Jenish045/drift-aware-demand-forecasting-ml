@@ -1,81 +1,194 @@
-# Drift-Aware Demand Forecasting Using Classical Machine Learning
+# Demand Forecasting with Drift Detection & Retraining Strategy
 
-## Project Objective
-The objective of this project is to build a machine learning–oriented demand forecasting pipeline that analyzes historical demand patterns, highlights real-world challenges in time-series data, and prepares the foundation for drift-aware forecasting models. The project emphasizes correct data understanding, aggregation, and evaluation before applying machine learning techniques.
+## 📌 Project Overview
 
----
+This project builds a **production-aware demand forecasting system** using historical product demand data.
 
-## Dataset Description
-This project uses the **Forecasts for Product Demand** from Kaggle.
+Unlike typical forecasting notebooks, this project goes beyond basic modeling and includes:
 
-**Source:** Kaggle  
-**Dataset Name:** Forecasts for Product Demand
+- Structured feature engineering for time-series data  
+- Statistical baselines  
+- Machine learning models  
+- Target transformation for skewed distributions  
+- Model comparison and evaluation  
+- Drift detection analysis  
+- Expanding-window retraining simulation  
 
-### Dataset Columns
-- `Date` – Date of demand observation
-- `Product_Code` – Unique identifier for each product
-- `Warehouse` – Warehouse from which the product was supplied
-- `Order_Demand` – Demand quantity for the product
-
-The dataset contains historical daily demand records for multiple products across several warehouses. Demand values are noisy, highly variable, and include intermittent and extreme spikes, making this dataset suitable for real-world demand forecasting analysis.
+The objective is to simulate how real-world forecasting systems behave in production environments.
 
 ---
 
-## Exploratory Data Analysis (EDA)
+## 📊 Dataset Description
 
-### Key Observations
-- Demand data is recorded at the **warehouse level**, requiring aggregation to obtain valid product-level time series.
-- Sales distributions are highly skewed, with many low-demand days and occasional extreme spikes.
-- High-demand products show **intermittent but very large demand**, while low-demand products exhibit **stable and nearly constant demand**.
-- Strong variability exists across products, indicating that a single forecasting strategy may not perform equally well for all items.
-- Aggregation at the daily product level is essential before applying forecasting models.
+The dataset contains historical demand records with the following columns:
 
----
+- `Product_Code`  
+- `Warehouse`  
+- `Product_Category`  
+- `Date`  
+- `Order_Demand`  
 
-## Challenges Identified
-- Highly volatile and intermittent demand patterns.
-- Presence of extreme outliers due to bulk orders.
-- Temporal dependencies that violate assumptions of simple statistical models.
-- Risk of model degradation over time due to changing demand behavior (concept drift).
+### Data Characteristics
 
----
-
-## Methodology Overview
-1. Data loading and cleaning of real-world demand values.
-2. Aggregation of warehouse-level data into product-level daily demand.
-3. Exploratory data analysis to understand trend, seasonality, and variability.
-4. Comparison of high-demand and low-demand product behavior.
-5. (Next phases) Statistical baselines, machine learning models, and drift handling.
+- Highly right-skewed target variable  
+- Extreme demand spikes  
+- Large variance across products  
+- Multiple warehouses and product categories  
 
 ---
 
-## Project Roadmap
-- **Week 1:** Data understanding and exploratory data analysis  
-- **Week 2:** Statistical baseline forecasting models  
-- **Week 3:** Feature engineering for supervised machine learning  
-- **Week 4:** Classical ML model training and evaluation  
-- **Week 5:** Time-aware validation and error analysis  
-- **Week 6:** Concept drift detection and retraining strategies  
+## 🔍 Key Challenges
+
+1. Heavy right-skewed demand distribution  
+2. High variance and outliers  
+3. Multi-entity forecasting (products + warehouses)  
+4. Potential temporal performance degradation  
 
 ---
 
-## Tools & Libraries
-- Python
-- Pandas
-- NumPy
-- Matplotlib
-- Scikit-learn (later stages)
+## ⚙️ Feature Engineering
+
+### Temporal Features
+- Day of week  
+- Month  
+- Quarter  
+- Weekend indicator  
+
+### Lag Features
+- `lag_1`  
+- `lag_7`  
+- `lag_14`  
+
+### Rolling Features
+- `rolling_mean_7`  
+- `rolling_std_7`  
+
+### Categorical Encoding
+- One-hot encoding for `Warehouse`  
+- One-hot encoding for `Product_Category`  
+- `Product_Code` excluded to avoid extreme dimensionality  
 
 ---
 
-## Key Learning Outcomes
-- Handling messy, real-world time-series data
-- Proper aggregation strategies for forecasting
-- Understanding demand variability across products
-- Building forecasting systems with long-term robustness in mind
+## 📈 Modeling Approach
+
+### 1️⃣ Baseline Models
+- Naive Forecast  
+- Moving Average  
+
+### 2️⃣ Machine Learning Models
+- Linear Regression  
+- Random Forest Regressor  
+
+### 3️⃣ Target Transformation
+
+Due to extreme skewness in `Order_Demand`, a log transformation was applied:
+
+y_log = log(1 + y)
+
+Models were trained on the transformed scale and predictions were converted back using `expm1` for evaluation.
 
 ---
 
-## Status
-✅ Week 1 completed  
-🚧 Week 2 in progress
+## 🏆 Model Performance Summary
+
+Best performing model:
+
+**Random Forest + Log Transformation**
+
+Improvements observed:
+- Significant MAE reduction  
+- More stable RMSE  
+- Better handling of extreme demand spikes  
+
+This demonstrates the importance of:
+- Understanding target distribution  
+- Applying variance stabilization techniques  
+- Iterative modeling refinement  
+
+---
+
+## 📉 Drift Detection & Monitoring
+
+This project includes production-style model monitoring.
+
+### 1️⃣ Temporal Performance Monitoring
+
+- Monthly MAE calculated over the test period  
+- Checked for monotonic degradation  
+- No consistent performance drift observed  
+
+### 2️⃣ Distribution Drift Analysis
+
+Compared training vs testing distributions for:
+
+- Target (`Order_Demand`)  
+- `rolling_mean_7`  
+- `lag_7`  
+
+Findings:
+- No significant structural distribution shift  
+- Feature distributions remained stable  
+
+### 3️⃣ Expanding-Window Retraining Simulation
+
+Simulated periodic retraining:
+
+- Train on 70%, test next 10%  
+- Retrain on 80%, test next 10%  
+
+Retraining significantly reduced MAE in later windows, demonstrating that scheduled retraining improves forecasting stability even without severe drift.
+
+---
+
+## 🧠 Key Insights
+
+- Demand data is highly skewed and volatile.  
+- Log transformation is critical for stability.  
+- Feature engineering drives performance improvement.  
+- Drift detection is essential in production systems.  
+- Expanding-window retraining enhances robustness.  
+
+---
+
+## 🛠 Tech Stack
+
+- Python  
+- Pandas  
+- NumPy  
+- Scikit-learn  
+- Matplotlib  
+
+---
+
+## 📂 Project Structure
+
+project-root/
+│
+├── notebooks/
+│   ├── 01_data_overview.ipynb
+│   ├── 02_baseline_models.ipynb
+│   └── 03_global_ml_model.ipynb
+│
+├── data/
+│   └── raw/
+│
+└── README.md
+
+---
+
+## 🚀 Future Improvements
+
+- Hyperparameter tuning with cross-validation  
+- Time-series cross-validation  
+- Model persistence using joblib  
+- Inference pipeline script  
+- REST API deployment (FastAPI / Flask)  
+- Automated retraining scheduler  
+
+---
+
+## 👤 Author
+
+Jenish Upadhyay  
+Machine Learning & Data Science Enthusiast  
