@@ -2,84 +2,83 @@ import joblib
 import numpy as np
 import pandas as pd
 import os
-from datetime import datetime
+
+
+# Load Models
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-model_path = os.path.join(BASE_DIR, "models", "random_forest_log_model.pkl")
+MODEL_PATH = os.path.join(BASE_DIR, "models", "category_models.pkl")
 
-def load_model():
-    return joblib.load(model_path)
+category_models = joblib.load(MODEL_PATH)
 
-def build_feature_row(model, product_code, warehouse,
-                      lag_1, lag_7, lag_14,
-                      rolling_mean_7, rolling_std_7,
-                      date):
 
-    feature_names = model.feature_names_in_
-    row = pd.DataFrame(columns=feature_names)
-    row.loc[0] = 0
+# Utility: Build Feature Row
 
-    # Fill time features
-    row["month"] = date.month
-    row["day_of_week"] = date.weekday()
-    row["quarter"] = (date.month - 1) // 3 + 1
+def build_feature_row(input_dict, feature_columns):
+    """
+    Builds a single-row DataFrame matching training feature order.
+    """
+    row = {col: 0 for col in feature_columns}
 
-    # Fill lag features
-    if "lag_1" in row.columns:
-        row["lag_1"] = lag_1
-    if "lag_7" in row.columns:
-        row["lag_7"] = lag_7
-    if "lag_14" in row.columns:
-        row["lag_14"] = lag_14
-    if "rolling_mean_7" in row.columns:
-        row["rolling_mean_7"] = rolling_mean_7
-    if "rolling_std_7" in row.columns:
-        row["rolling_std_7"] = rolling_std_7
+    for key, value in input_dict.items():
+        if key in row:
+            row[key] = value
 
-    # One-hot encoded warehouse
-    warehouse_col = f"Warehouse_{warehouse}"
-    if warehouse_col in row.columns:
-        row[warehouse_col] = 1
+    return pd.DataFrame([row])
 
-    # One-hot encoded product
-    product_col = f"Product_Code_{product_code}"
-    if product_col in row.columns:
-        row[product_col] = 1
 
-    return row
+# Prediction Function
 
-def forecast(model, feature_row):
-    prediction_log = model.predict(feature_row)
-    prediction = np.expm1(prediction_log)
-    return prediction[0]
+def predict(input_features: dict):
+    """
+    input_features must include:
+        - Product_Category dummy column (e.g., Product_Category_Category_020)
+        - lag features
+        - rolling features
+        - calendar features
+    """
+
+    # Identify category column
+    category_col = None
+    for key in input_features.keys():
+        if key.startswith("Product_Category_") and input_features[key] == 1:
+            category_col = key
+            break
+
+    if category_col is None:
+        raise ValueError("No valid Product_Category dummy provided.")
+
+    if category_col not in category_models:
+        raise ValueError(f"No trained model found for {category_col}")
+
+    model = category_models[category_col]
+
+    feature_columns = model.feature_name_
+
+    feature_row = build_feature_row(input_features, feature_columns)
+
+    pred_log = model.predict(feature_row)
+    pred_actual = np.expm1(pred_log)
+
+    return float(pred_actual[0])
+
+
+# Example Usage
 
 if __name__ == "__main__":
-    model = load_model()
 
-    # Example realistic scenario
-    product = "Product_0001"
-    warehouse = "Whse_A"
-    forecast_date = datetime(2024, 3, 1)
+    sample_input = {
+        "lag_1": 100,
+        "lag_7": 120,
+        "lag_14": 90,
+        "rolling_mean_7": 110,
+        "rolling_std_7": 15,
+        "month": 6,
+        "day_of_week": 2,
+        "quarter": 2,
+        "Product_Category_Category_020": 1
+    }
 
-    feature_row = build_feature_row(
-        model=model,
-        product_code=product,
-        warehouse=warehouse,
-        lag_1=1200,
-        lag_7=1100,
-        lag_14=1000,
-        rolling_mean_7=1150,
-        rolling_std_7=150,
-        date=forecast_date
-    )
+    prediction = predict(sample_input)
 
-    predicted_demand = forecast(model, feature_row)
-
-    print("--------------------------------------------------")
-    print("Retail Demand Forecast")
-    print("--------------------------------------------------")
-    print(f"Product: {product}")
-    print(f"Warehouse: {warehouse}")
-    print(f"Forecast Date: {forecast_date.date()}")
-    print(f"Predicted Demand: {round(predicted_demand, 2)} units")
-    print("--------------------------------------------------")
+    print("Predicted Demand:", prediction)
