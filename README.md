@@ -1,221 +1,158 @@
-# Drift-Aware Global Retail Demand Forecasting System
+# Drift-Aware Retail Demand Forecasting
 
-A production-oriented machine learning system for multi-entity retail demand forecasting with drift monitoring and expanding-window retraining simulation.
+## Overview
 
----
+This project implements a drift-aware, segmented retail demand forecasting system using time-series validation and gradient boosting models.
 
-## 1. Problem Definition
-
-We model demand forecasting as a supervised regression problem:
-
-(Product_Code, Warehouse, Date) → Order_Demand
-
-The objective is to estimate future demand for a specific product–warehouse pair using historical signals while maintaining time-aware validation and monitoring model stability over time.
-
-This is implemented as a **global forecasting model** trained across all products and warehouses.
+The system evolves from a baseline global model into a category-level architecture with outlier control and drift monitoring, reflecting realistic retail forecasting practices.
 
 ---
 
-## 2. Dataset
+## Problem Statement
 
-Columns:
+Retail demand forecasting is challenging due to:
 
-- Product_Code
-- Warehouse
-- Product_Category
-- Date
-- Order_Demand
+- Heavy-tailed demand distributions
+- Extreme demand spikes
+- Intermittent demand behavior
+- Temporal distribution shifts
+- Heterogeneous product dynamics
 
-Characteristics:
+A global model often fails to capture category-specific demand patterns.
 
-- 2160 products
-- 4 warehouses
-- 33 categories
-- Heavy right-skew in target variable
-- High variance and extreme outliers
-
-Preprocessing:
-
-- Date parsing and chronological sorting
-- Numeric cleaning of Order_Demand
-- Time-aware splitting (no random shuffling)
-- Duplicate validation at (Product_Code, Warehouse, Date) level
+This project investigates architectural and statistical solutions to improve forecasting robustness.
 
 ---
 
-## 3. Feature Engineering
+## Dataset
 
-### 3.1 Temporal Features
-- day_of_week
-- month
-- quarter
-- weekend indicator
+Columns used:
 
-### 3.2 Lag Features
-- lag_1
-- lag_7
-- lag_14
+- `Product_Code`
+- `Warehouse`
+- `Product_Category`
+- `Date`
+- `Order_Demand`
 
-### 3.3 Rolling Statistics
-- rolling_mean_7
-- rolling_std_7
+Feature engineering includes:
 
-### 3.4 Categorical Encoding
-- One-hot encoding for Warehouse
-- One-hot encoding for Product_Category
-- Product_Code encoded in global feature space
-
-The resulting feature matrix represents multi-entity time-series signals in tabular form.
+- Lag features (lag_1, lag_7, lag_14)
+- Rolling statistics (rolling_mean_7, rolling_std_7)
+- Calendar features (month, day_of_week, quarter)
+- One-hot encoding for categorical variables
 
 ---
 
-## 4. Target Transformation
+## Modeling Approach
 
-The target variable is highly skewed.
+### 1. Baseline Global Model
+- RandomForestRegressor
+- Time-aware train-test split
+- Evaluated with MAE and RMSE
 
-To stabilize variance and reduce the impact of extreme values:
+### 2. TimeSeries Cross-Validation
+- 5-fold TimeSeriesSplit
+- Introduced WMAPE (Weighted Mean Absolute Percentage Error)
+- Identified instability under extreme demand volatility
 
-y_log = log1p(Order_Demand)
+### 3. Algorithm Upgrade
+- Replaced RandomForest with LightGBM
+- Minor improvements observed
+- Concluded structural modeling issue
 
-Model predictions are converted back using:
+### 4. Category-Level Segmentation
+- Trained separate LightGBM model per Product_Category
+- Reduced cross-category variance
+- Weighted evaluation across categories
 
-Order_Demand = expm1(prediction_log)
+### 5. Outlier Treatment
+- Applied 99th percentile clipping per category
+- Reduced spike distortion in error metrics
+- Improved weighted WMAPE
 
-This significantly improved MAE and reduced RMSE instability.
-
----
-
-## 5. Modeling Strategy
-
-### 5.1 Baselines
-- Naive (last observation)
-- Moving Average
-
-### 5.2 ML Models
-- Linear Regression
-- Random Forest Regressor
-
-### 5.3 Time-Aware Validation
-
-Chronological 80/20 split used initially.
-
-Further evaluation performed using expanding-window simulation:
-
-- Train: 0–70%, Test: 70–80%
-- Train: 0–80%, Test: 80–90%
-- Train: 0–90%, Test: 90–100%
-
-This mimics production retraining cycles.
+### 6. Drift Analysis
+- Per-category temporal split (80/20)
+- Compared train vs test mean demand
+- Verified model stability under demand shift
 
 ---
 
-## 6. Drift Monitoring
+## Final Architecture
 
-Three levels of monitoring were implemented:
-
-### 6.1 Temporal Performance Tracking
-- Monthly MAE computed over test period
-- Checked for monotonic degradation
-
-### 6.2 Target Distribution Comparison
-- Train vs Test histogram comparison
-- Mean and median stability analysis
-
-### 6.3 Feature Distribution Drift
-- rolling_mean_7
-- lag_7
-- lag_14
-
-No structural drift detected, but expanding-window retraining improved stability.
+- Segmented LightGBM models
+- Log-transformed target
+- TimeSeriesSplit validation
+- Weighted WMAPE evaluation
+- Outlier clipping (Winsorization)
+- Drift-aware performance monitoring
+- Model persistence via joblib
 
 ---
 
-## 7. Model Selection
+## Performance Summary
 
-Best performing configuration:
+| Stage | Weighted WMAPE |
+|--------|----------------|
+| Global RandomForest | ~0.81 |
+| Global LightGBM | ~0.79 |
+| Category-Level LightGBM | ~0.74 |
+| Category + Clipping | ~0.70 |
 
-Random Forest + Log-Transformed Target
-
-Key observations:
-
-- Significant MAE reduction vs non-transformed model
-- Lower RMSE volatility
-- Feature importance dominated by rolling_mean_7 and lag features
-- Demonstrated nonlinear dependency on recent demand signals
+No category exhibited catastrophic failure (WMAPE > 1.0).
 
 ---
 
-## 8. Model Persistence & Inference
+## Key Insights
 
-Model saved locally using joblib.
-
-Artifacts excluded from version control via .gitignore.
-
-Inference pipeline:
-
-- Loads trained model
-- Constructs feature row for specific product/warehouse/date
-- Applies log-space prediction
-- Converts back to demand units
-- Outputs business-readable forecast
-
-Run:
-
-python src/inference.py
+- Structural segmentation improves stability more than algorithm switching.
+- Extreme demand spikes heavily distort scale-normalized metrics.
+- Outlier control is essential in heavy-tailed retail data.
+- Drift-aware evaluation provides realistic model assessment.
+- Architecture design is critical in time-series forecasting systems.
 
 ---
 
-## 9. Project Structure
+## Project Structure
 
+```
 project-root/
-
+│
 ├── notebooks/
 │   ├── 01_data_overview.ipynb
 │   ├── 02_baseline_models.ipynb
 │   └── 03_global_ml_model.ipynb
 │
-├── src/
-│   └── inference.py
-│
-├── models/              (local artifacts, ignored)
 ├── data/
 │   └── raw/
 │
-├── requirements.txt
-├── .gitignore
+├── src/
+│   └── inference.py
+│
+├── models/
+│
 └── README.md
+```
 
 ---
 
-## 10. Engineering Practices Applied
-
-- Strict chronological validation
-- Feature leakage avoidance
-- Artifact separation from source control
-- Model version compatibility awareness
-- Production-style inference script
-- Expanding-window retraining simulation
-
----
-
-## 11. Key Technical Takeaways
-
-- Global tabular models can effectively handle multi-entity forecasting.
-- Log transformation is critical for heavy-tailed retail demand.
-- Drift detection requires both performance and distribution monitoring.
-- Expanding-window retraining improves robustness even without strong drift signals.
-- Proper Git hygiene is essential for ML projects.
-
----
-
-## 12. Tech Stack
+## Technologies Used
 
 - Python
 - Pandas
 - NumPy
 - Scikit-learn
-- Matplotlib
+- LightGBM
 - Joblib
+
+---
+
+## Future Improvements
+
+- Hierarchical forecasting reconciliation
+- Hyperparameter optimization
+- Intermittent demand modeling (Croston-style methods)
+- External regressors (price, promotion, holidays)
+- Model monitoring automation
 
 ---
 
