@@ -1,194 +1,224 @@
-# Demand Forecasting with Drift Detection & Retraining Strategy
+# Drift-Aware Global Retail Demand Forecasting System
 
-## 📌 Project Overview
-
-This project builds a **production-aware demand forecasting system** using historical product demand data.
-
-Unlike typical forecasting notebooks, this project goes beyond basic modeling and includes:
-
-- Structured feature engineering for time-series data  
-- Statistical baselines  
-- Machine learning models  
-- Target transformation for skewed distributions  
-- Model comparison and evaluation  
-- Drift detection analysis  
-- Expanding-window retraining simulation  
-
-The objective is to simulate how real-world forecasting systems behave in production environments.
+A production-oriented machine learning system for multi-entity retail demand forecasting with drift monitoring and expanding-window retraining simulation.
 
 ---
 
-## 📊 Dataset Description
+## 1. Problem Definition
 
-The dataset contains historical demand records with the following columns:
+We model demand forecasting as a supervised regression problem:
 
-- `Product_Code`  
-- `Warehouse`  
-- `Product_Category`  
-- `Date`  
-- `Order_Demand`  
+(Product_Code, Warehouse, Date) → Order_Demand
 
-### Data Characteristics
+The objective is to estimate future demand for a specific product–warehouse pair using historical signals while maintaining time-aware validation and monitoring model stability over time.
 
-- Highly right-skewed target variable  
-- Extreme demand spikes  
-- Large variance across products  
-- Multiple warehouses and product categories  
+This is implemented as a **global forecasting model** trained across all products and warehouses.
 
 ---
 
-## 🔍 Key Challenges
+## 2. Dataset
 
-1. Heavy right-skewed demand distribution  
-2. High variance and outliers  
-3. Multi-entity forecasting (products + warehouses)  
-4. Potential temporal performance degradation  
+Columns:
 
----
+- Product_Code
+- Warehouse
+- Product_Category
+- Date
+- Order_Demand
 
-## ⚙️ Feature Engineering
+Characteristics:
 
-### Temporal Features
-- Day of week  
-- Month  
-- Quarter  
-- Weekend indicator  
+- 2160 products
+- 4 warehouses
+- 33 categories
+- Heavy right-skew in target variable
+- High variance and extreme outliers
 
-### Lag Features
-- `lag_1`  
-- `lag_7`  
-- `lag_14`  
+Preprocessing:
 
-### Rolling Features
-- `rolling_mean_7`  
-- `rolling_std_7`  
-
-### Categorical Encoding
-- One-hot encoding for `Warehouse`  
-- One-hot encoding for `Product_Category`  
-- `Product_Code` excluded to avoid extreme dimensionality  
+- Date parsing and chronological sorting
+- Numeric cleaning of Order_Demand
+- Time-aware splitting (no random shuffling)
+- Duplicate validation at (Product_Code, Warehouse, Date) level
 
 ---
 
-## 📈 Modeling Approach
+## 3. Feature Engineering
 
-### 1️⃣ Baseline Models
-- Naive Forecast  
-- Moving Average  
+### 3.1 Temporal Features
+- day_of_week
+- month
+- quarter
+- weekend indicator
 
-### 2️⃣ Machine Learning Models
-- Linear Regression  
-- Random Forest Regressor  
+### 3.2 Lag Features
+- lag_1
+- lag_7
+- lag_14
 
-### 3️⃣ Target Transformation
+### 3.3 Rolling Statistics
+- rolling_mean_7
+- rolling_std_7
 
-Due to extreme skewness in `Order_Demand`, a log transformation was applied:
+### 3.4 Categorical Encoding
+- One-hot encoding for Warehouse
+- One-hot encoding for Product_Category
+- Product_Code encoded in global feature space
 
-y_log = log(1 + y)
-
-Models were trained on the transformed scale and predictions were converted back using `expm1` for evaluation.
-
----
-
-## 🏆 Model Performance Summary
-
-Best performing model:
-
-**Random Forest + Log Transformation**
-
-Improvements observed:
-- Significant MAE reduction  
-- More stable RMSE  
-- Better handling of extreme demand spikes  
-
-This demonstrates the importance of:
-- Understanding target distribution  
-- Applying variance stabilization techniques  
-- Iterative modeling refinement  
+The resulting feature matrix represents multi-entity time-series signals in tabular form.
 
 ---
 
-## 📉 Drift Detection & Monitoring
+## 4. Target Transformation
 
-This project includes production-style model monitoring.
+The target variable is highly skewed.
 
-### 1️⃣ Temporal Performance Monitoring
+To stabilize variance and reduce the impact of extreme values:
 
-- Monthly MAE calculated over the test period  
-- Checked for monotonic degradation  
-- No consistent performance drift observed  
+y_log = log1p(Order_Demand)
 
-### 2️⃣ Distribution Drift Analysis
+Model predictions are converted back using:
 
-Compared training vs testing distributions for:
+Order_Demand = expm1(prediction_log)
 
-- Target (`Order_Demand`)  
-- `rolling_mean_7`  
-- `lag_7`  
-
-Findings:
-- No significant structural distribution shift  
-- Feature distributions remained stable  
-
-### 3️⃣ Expanding-Window Retraining Simulation
-
-Simulated periodic retraining:
-
-- Train on 70%, test next 10%  
-- Retrain on 80%, test next 10%  
-
-Retraining significantly reduced MAE in later windows, demonstrating that scheduled retraining improves forecasting stability even without severe drift.
+This significantly improved MAE and reduced RMSE instability.
 
 ---
 
-## 🧠 Key Insights
+## 5. Modeling Strategy
 
-- Demand data is highly skewed and volatile.  
-- Log transformation is critical for stability.  
-- Feature engineering drives performance improvement.  
-- Drift detection is essential in production systems.  
-- Expanding-window retraining enhances robustness.  
+### 5.1 Baselines
+- Naive (last observation)
+- Moving Average
+
+### 5.2 ML Models
+- Linear Regression
+- Random Forest Regressor
+
+### 5.3 Time-Aware Validation
+
+Chronological 80/20 split used initially.
+
+Further evaluation performed using expanding-window simulation:
+
+- Train: 0–70%, Test: 70–80%
+- Train: 0–80%, Test: 80–90%
+- Train: 0–90%, Test: 90–100%
+
+This mimics production retraining cycles.
 
 ---
 
-## 🛠 Tech Stack
+## 6. Drift Monitoring
 
-- Python  
-- Pandas  
-- NumPy  
-- Scikit-learn  
-- Matplotlib  
+Three levels of monitoring were implemented:
+
+### 6.1 Temporal Performance Tracking
+- Monthly MAE computed over test period
+- Checked for monotonic degradation
+
+### 6.2 Target Distribution Comparison
+- Train vs Test histogram comparison
+- Mean and median stability analysis
+
+### 6.3 Feature Distribution Drift
+- rolling_mean_7
+- lag_7
+- lag_14
+
+No structural drift detected, but expanding-window retraining improved stability.
 
 ---
 
-## 📂 Project Structure
+## 7. Model Selection
+
+Best performing configuration:
+
+Random Forest + Log-Transformed Target
+
+Key observations:
+
+- Significant MAE reduction vs non-transformed model
+- Lower RMSE volatility
+- Feature importance dominated by rolling_mean_7 and lag features
+- Demonstrated nonlinear dependency on recent demand signals
+
+---
+
+## 8. Model Persistence & Inference
+
+Model saved locally using joblib.
+
+Artifacts excluded from version control via .gitignore.
+
+Inference pipeline:
+
+- Loads trained model
+- Constructs feature row for specific product/warehouse/date
+- Applies log-space prediction
+- Converts back to demand units
+- Outputs business-readable forecast
+
+Run:
+
+python src/inference.py
+
+---
+
+## 9. Project Structure
 
 project-root/
-│
+
 ├── notebooks/
 │   ├── 01_data_overview.ipynb
 │   ├── 02_baseline_models.ipynb
 │   └── 03_global_ml_model.ipynb
 │
+├── src/
+│   └── inference.py
+│
+├── models/              (local artifacts, ignored)
 ├── data/
 │   └── raw/
 │
+├── requirements.txt
+├── .gitignore
 └── README.md
 
 ---
 
-## 🚀 Future Improvements
+## 10. Engineering Practices Applied
 
-- Hyperparameter tuning with cross-validation  
-- Time-series cross-validation  
-- Model persistence using joblib  
-- Inference pipeline script  
-- REST API deployment (FastAPI / Flask)  
-- Automated retraining scheduler  
+- Strict chronological validation
+- Feature leakage avoidance
+- Artifact separation from source control
+- Model version compatibility awareness
+- Production-style inference script
+- Expanding-window retraining simulation
 
 ---
 
-## 👤 Author
+## 11. Key Technical Takeaways
 
-Jenish Upadhyay  
-Machine Learning & Data Science Enthusiast  
+- Global tabular models can effectively handle multi-entity forecasting.
+- Log transformation is critical for heavy-tailed retail demand.
+- Drift detection requires both performance and distribution monitoring.
+- Expanding-window retraining improves robustness even without strong drift signals.
+- Proper Git hygiene is essential for ML projects.
+
+---
+
+## 12. Tech Stack
+
+- Python
+- Pandas
+- NumPy
+- Scikit-learn
+- Matplotlib
+- Joblib
+
+---
+
+## Author
+
+Jenish Upadhyay
