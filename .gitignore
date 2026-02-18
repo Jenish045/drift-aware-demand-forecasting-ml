@@ -8,7 +8,8 @@ __pycache__/
 # Data files (optional if large)
 data/raw/*.csv
 
-
+models/
+*.pkl
 
 # OS files
 .DS_Store
