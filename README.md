@@ -2,9 +2,18 @@
 
 ## Overview
 
-This project implements a drift-aware, segmented retail demand forecasting system using time-series validation and gradient boosting models.
+This project implements a drift-aware retail demand forecasting system using segmented gradient boosting models.
 
-The system evolves from a baseline global model into a category-level architecture with outlier control and drift monitoring, reflecting realistic retail forecasting practices.
+Instead of building a simple regression model, the focus of this project is:
+
+- Time-aware validation
+- Architectural improvement
+- Category-level segmentation
+- Outlier control
+- Drift monitoring
+- Production-ready inference design
+
+The final system is robust, stable under temporal shifts, and aligned with business evaluation metrics.
 
 ---
 
@@ -13,14 +22,14 @@ The system evolves from a baseline global model into a category-level architectu
 Retail demand forecasting is challenging due to:
 
 - Heavy-tailed demand distributions
-- Extreme demand spikes
-- Intermittent demand behavior
-- Temporal distribution shifts
-- Heterogeneous product dynamics
+- Extreme spikes
+- Intermittent demand patterns
+- Category-level heterogeneity
+- Temporal distribution drift
 
-A global model often fails to capture category-specific demand patterns.
+A single global model often fails to capture structural differences between product categories.
 
-This project investigates architectural and statistical solutions to improve forecasting robustness.
+This project explores structural and architectural improvements to address these challenges.
 
 ---
 
@@ -34,46 +43,59 @@ Columns used:
 - `Date`
 - `Order_Demand`
 
-Feature engineering includes:
+---
 
-- Lag features (lag_1, lag_7, lag_14)
-- Rolling statistics (rolling_mean_7, rolling_std_7)
-- Calendar features (month, day_of_week, quarter)
-- One-hot encoding for categorical variables
+## Feature Engineering
+
+### Lag Features
+- lag_1
+- lag_7
+- lag_14
+
+### Rolling Features
+- rolling_mean_7
+- rolling_std_7
+
+### Calendar Features
+- month
+- day_of_week
+- quarter
+
+### Target Transformation
+- log1p transformation
+- expm1 inverse transform during inference
 
 ---
 
-## Modeling Approach
+## Modeling Evolution
 
 ### 1. Baseline Global Model
 - RandomForestRegressor
-- Time-aware train-test split
-- Evaluated with MAE and RMSE
+- Chronological train-test split
+- Evaluated using MAE and RMSE
 
-### 2. TimeSeries Cross-Validation
-- 5-fold TimeSeriesSplit
+### 2. Temporal Cross-Validation
+- TimeSeriesSplit (5 folds)
 - Introduced WMAPE (Weighted Mean Absolute Percentage Error)
-- Identified instability under extreme demand volatility
+- Identified performance instability
 
-### 3. Algorithm Upgrade
+### 3. Model Upgrade
 - Replaced RandomForest with LightGBM
-- Minor improvements observed
-- Concluded structural modeling issue
+- Observed marginal algorithmic improvement
 
 ### 4. Category-Level Segmentation
-- Trained separate LightGBM model per Product_Category
+- Trained separate LightGBM models per Product_Category
 - Reduced cross-category variance
-- Weighted evaluation across categories
+- Weighted evaluation across segments
 
-### 5. Outlier Treatment
+### 5. Outlier Control
 - Applied 99th percentile clipping per category
-- Reduced spike distortion in error metrics
-- Improved weighted WMAPE
+- Improved metric stability
 
 ### 6. Drift Analysis
-- Per-category temporal split (80/20)
 - Compared train vs test mean demand
-- Verified model stability under demand shift
+- Measured per-category WMAPE
+- Verified absence of catastrophic category failure
 
 ---
 
@@ -83,9 +105,10 @@ Feature engineering includes:
 - Log-transformed target
 - TimeSeriesSplit validation
 - Weighted WMAPE evaluation
-- Outlier clipping (Winsorization)
-- Drift-aware performance monitoring
-- Model persistence via joblib
+- Outlier clipping
+- Drift-aware evaluation
+- Production-style model routing
+- Artifact serialization using joblib
 
 ---
 
@@ -98,17 +121,62 @@ Feature engineering includes:
 | Category-Level LightGBM | ~0.74 |
 | Category + Clipping | ~0.70 |
 
-No category exhibited catastrophic failure (WMAPE > 1.0).
+The final architecture significantly improved stability and reduced structural variance.
 
 ---
 
-## Key Insights
+## Running Inference
 
-- Structural segmentation improves stability more than algorithm switching.
-- Extreme demand spikes heavily distort scale-normalized metrics.
-- Outlier control is essential in heavy-tailed retail data.
-- Drift-aware evaluation provides realistic model assessment.
-- Architecture design is critical in time-series forecasting systems.
+### Ensure Model Exists
+
+```
+models/category_models.pkl
+```
+
+### Run
+
+```
+python src/inference.py
+```
+
+### Example Input
+
+```python
+sample_input = {
+    "lag_1": 100,
+    "lag_7": 120,
+    "lag_14": 90,
+    "rolling_mean_7": 110,
+    "rolling_std_7": 15,
+    "month": 6,
+    "day_of_week": 2,
+    "quarter": 2,
+    "Product_Category_Category_020": 1
+}
+```
+
+### Output
+
+```
+Predicted Demand: 109.52
+```
+
+---
+
+## Unit Testing
+
+Basic unit tests are included in the `tests/` directory to verify:
+
+- WMAPE correctness
+- Lag feature generation
+- Inference inverse transformation
+
+Run tests using:
+
+```
+pip install pytest
+pytest
+```
 
 ---
 
@@ -120,13 +188,14 @@ project-root/
 ├── notebooks/
 │   ├── 01_data_overview.ipynb
 │   ├── 02_baseline_models.ipynb
-│   └── 03_global_ml_model.ipynb
-│
-├── data/
-│   └── raw/
+│   └── 03_model_architecture.ipynb
 │
 ├── src/
 │   └── inference.py
+│
+├── tests/
+│
+├── data/
 │
 ├── models/
 │
@@ -143,16 +212,27 @@ project-root/
 - Scikit-learn
 - LightGBM
 - Joblib
+- PyTest
+
+---
+
+## Key Insights
+
+- Architecture design matters more than algorithm switching.
+- Time-aware validation is essential in forecasting.
+- Heavy-tailed retail demand requires scale-normalized metrics.
+- Category segmentation reduces structural instability.
+- Drift monitoring improves real-world robustness.
 
 ---
 
 ## Future Improvements
 
 - Hierarchical forecasting reconciliation
-- Hyperparameter optimization
-- Intermittent demand modeling (Croston-style methods)
+- Hyperparameter optimization (Optuna)
 - External regressors (price, promotion, holidays)
-- Model monitoring automation
+- Automated drift detection (PSI)
+- Deployment via FastAPI
 
 ---
 
