@@ -3,56 +3,49 @@ import numpy as np
 import pandas as pd
 import os
 
-
-# Load Models
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "category_models.pkl")
+
+if not os.path.exists(MODEL_PATH):
+    raise FileNotFoundError("Model file not found. Train models first.")
 
 category_models = joblib.load(MODEL_PATH)
 
 
-# Utility: Build Feature Row
-
 def build_feature_row(input_dict, feature_columns):
-    """
-    Builds a single-row DataFrame matching training feature order.
-    """
     row = {col: 0 for col in feature_columns}
-
     for key, value in input_dict.items():
         if key in row:
             row[key] = value
-
     return pd.DataFrame([row])
 
 
-# Prediction Function
-
 def predict(input_features: dict):
-    """
-    input_features must include:
-        - Product_Category dummy column (e.g., Product_Category_Category_020)
-        - lag features
-        - rolling features
-        - calendar features
-    """
 
-    # Identify category column
-    category_col = None
-    for key in input_features.keys():
-        if key.startswith("Product_Category_") and input_features[key] == 1:
-            category_col = key
-            break
+    required_features = [
+        "lag_1", "lag_7", "lag_14",
+        "rolling_mean_7", "rolling_std_7",
+        "month", "day_of_week", "quarter"
+    ]
 
-    if category_col is None:
-        raise ValueError("No valid Product_Category dummy provided.")
+    for feat in required_features:
+        if feat not in input_features:
+            raise ValueError(f"Missing required feature: {feat}")
+
+    category_cols = [
+        key for key in input_features
+        if key.startswith("Product_Category_") and input_features[key] == 1
+    ]
+
+    if len(category_cols) != 1:
+        raise ValueError("Exactly one Product_Category dummy must be set to 1.")
+
+    category_col = category_cols[0]
 
     if category_col not in category_models:
         raise ValueError(f"No trained model found for {category_col}")
 
     model = category_models[category_col]
-
     feature_columns = model.feature_name_
 
     feature_row = build_feature_row(input_features, feature_columns)
@@ -62,8 +55,6 @@ def predict(input_features: dict):
 
     return float(pred_actual[0])
 
-
-# Example Usage
 
 if __name__ == "__main__":
 
@@ -80,5 +71,4 @@ if __name__ == "__main__":
     }
 
     prediction = predict(sample_input)
-
     print("Predicted Demand:", prediction)
