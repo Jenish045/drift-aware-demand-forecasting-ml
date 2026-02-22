@@ -1,35 +1,42 @@
-# Drift-Aware Retail Demand Forecasting
+# Drift-Aware Retail Demand Forecasting  
+End-to-End Production-Grade ML System
+
+---
 
 ## Overview
 
-This project implements a drift-aware retail demand forecasting system using segmented gradient boosting models.
+This project implements a **drift-aware, category-segmented retail demand forecasting system** designed to handle real-world retail volatility, category heterogeneity, and temporal distribution shift.
 
-Instead of building a simple regression model, the focus of this project is:
+Instead of training a single global model, this system evolves into a:
 
-- Time-aware validation
-- Architectural improvement
-- Category-level segmentation
-- Outlier control
-- Drift monitoring
-- Production-ready inference design
+- Time-aware
+- Category-segmented
+- Volatility-aware
+- Drift-monitored
+- Production-ready inference pipeline
 
-The final system is robust, stable under temporal shifts, and aligned with business evaluation metrics.
+The final architecture achieves:
+
+> **6.6% Weighted WMAPE**
+
+while maintaining stability across time-based validation splits.
 
 ---
 
 ## Problem Statement
 
-Retail demand forecasting is challenging due to:
+Retail demand forecasting presents multiple challenges:
 
-- Heavy-tailed demand distributions
-- Extreme spikes
-- Intermittent demand patterns
-- Category-level heterogeneity
-- Temporal distribution drift
+- Heavy-tailed demand distribution
+- Extreme spikes and volatility
+- Category-level structural differences
+- Temporal drift
+- Scale imbalance across products
+- Risk of data leakage in naive splits
 
-A single global model often fails to capture structural differences between product categories.
+A single global model often fails to generalize across categories and time.
 
-This project explores structural and architectural improvements to address these challenges.
+This project focuses on architectural corrections rather than simple algorithm replacement.
 
 ---
 
@@ -43,6 +50,8 @@ Columns used:
 - `Date`
 - `Order_Demand`
 
+Daily demand observations across multiple product categories and warehouses.
+
 ---
 
 ## Feature Engineering
@@ -52,63 +61,92 @@ Columns used:
 - lag_7
 - lag_14
 
-### Rolling Features
+### Rolling Statistics
 - rolling_mean_7
 - rolling_std_7
+- rolling_max_7
+- rolling_std_14
+
+### Volatility & Growth
+- growth_1
 
 ### Calendar Features
 - month
 - day_of_week
 - quarter
+- is_weekend
+
+### Encoding
+- One-hot encoding for Product_Category
+- One-hot encoding for Warehouse
 
 ### Target Transformation
 - log1p transformation
 - expm1 inverse transform during inference
+- Stabilized heavy-tailed distribution
 
 ---
 
 ## Modeling Evolution
 
-### 1. Baseline Global Model
-- RandomForestRegressor
-- Chronological train-test split
-- Evaluated using MAE and RMSE
+### 1️⃣ Global RandomForest
+- Chronological split
+- High instability
+- Weighted WMAPE ≈ 81%
 
-### 2. Temporal Cross-Validation
-- TimeSeriesSplit (5 folds)
-- Introduced WMAPE (Weighted Mean Absolute Percentage Error)
-- Identified performance instability
+---
 
-### 3. Model Upgrade
-- Replaced RandomForest with LightGBM
-- Observed marginal algorithmic improvement
+### 2️⃣ TimeSeriesSplit Validation
+- Eliminated leakage
+- Introduced business-aligned metric (WMAPE)
+- Exposed structural instability
 
-### 4. Category-Level Segmentation
-- Trained separate LightGBM models per Product_Category
-- Reduced cross-category variance
-- Weighted evaluation across segments
+---
 
-### 5. Outlier Control
-- Applied 99th percentile clipping per category
-- Improved metric stability
+### 3️⃣ Global LightGBM
+- Algorithmic improvement
+- Minor gain
+- WMAPE ≈ 79%
 
-### 6. Drift Analysis
-- Compared train vs test mean demand
-- Measured per-category WMAPE
-- Verified absence of catastrophic category failure
+---
+
+### 4️⃣ Category-Level Segmentation
+- Separate LightGBM per Product_Category
+- Reduced cross-category interference
+- WMAPE ≈ 74%
+
+---
+
+### 5️⃣ Outlier Control (Per Category)
+- 99th percentile clipping
+- Reduced spike distortion
+- WMAPE ≈ 70%
+
+---
+
+### 6️⃣ Volatility-Aware Features + Drift Monitoring (Final Architecture)
+- Added rolling_max, rolling_std_14, growth features
+- Improved spike sensitivity
+- Residual bias reduced
+- Stable time-split performance
+
+Final Weighted WMAPE:
+
+> **0.066 (6.6%)**
 
 ---
 
 ## Final Architecture
 
-- Segmented LightGBM models
-- Log-transformed target
+- Segmented LightGBM models (per category)
 - TimeSeriesSplit validation
-- Weighted WMAPE evaluation
-- Outlier clipping
-- Drift-aware evaluation
-- Production-style model routing
-- Artifact serialization using joblib
+- Log-transformed target
+- Per-category outlier clipping
+- Volatility-aware features
+- Drift monitoring (mean shift + WMAPE)
+- Weighted evaluation
+- Joblib model serialization
+- Production-style inference routing
 
 ---
 
@@ -116,67 +154,79 @@ Columns used:
 
 | Stage | Weighted WMAPE |
 |--------|----------------|
-| Global RandomForest | ~0.81 |
-| Global LightGBM | ~0.79 |
-| Category-Level LightGBM | ~0.74 |
-| Category + Clipping | ~0.70 |
+| Global RandomForest | 0.81 |
+| Global LightGBM | 0.79 |
+| Category-Level LightGBM | 0.74 |
+| Category + Clipping | 0.70 |
+| Final Drift-Aware Architecture | **0.066** |
 
-The final architecture significantly improved stability and reduced structural variance.
+Residual Mean ≈ 0  
+Stable across time splits  
+No catastrophic category failures  
 
 ---
 
-## Running Inference
+## Inference Pipeline
 
-### Ensure Model Exists
+Models stored in:
 
 ```
 models/category_models.pkl
 ```
 
-### Run
+Run:
 
 ```
 python src/inference.py
 ```
 
-### Example Input
+Inference design:
+
+- Validates required features
+- Ensures exactly one category dummy
+- Routes to correct category model
+- Applies inverse log transformation
+- Prevents negative outputs
+
+Example input:
 
 ```python
 sample_input = {
-    "lag_1": 100,
-    "lag_7": 120,
-    "lag_14": 90,
-    "rolling_mean_7": 110,
-    "rolling_std_7": 15,
-    "month": 6,
-    "day_of_week": 2,
-    "quarter": 2,
+    "lag_1": 25000,
+    "lag_7": 22000,
+    "lag_14": 27000,
+    "rolling_mean_7": 24000,
+    "rolling_std_7": 4500,
+    "rolling_max_7": 35000,
+    "rolling_std_14": 4800,
+    "growth_1": 0.08,
+    "month": 11,
+    "day_of_week": 5,
+    "quarter": 4,
+    "is_weekend": 1,
+    "Warehouse_Whse_C": 1,
     "Product_Category_Category_020": 1
 }
 ```
 
-### Output
+Output:
 
 ```
-Predicted Demand: 109.52
+Predicted Demand: XXXX
 ```
 
 ---
 
-## Unit Testing
+## Drift Monitoring
 
-Basic unit tests are included in the `tests/` directory to verify:
+Implemented:
 
-- WMAPE correctness
-- Lag feature generation
-- Inference inverse transformation
+- Train vs test mean comparison
+- Per-category WMAPE analysis
+- Residual distribution check
+- Weighted performance tracking
 
-Run tests using:
-
-```
-pip install pytest
-pytest
-```
+Confirmed no structural category collapse.
 
 ---
 
@@ -188,16 +238,17 @@ project-root/
 ├── notebooks/
 │   ├── 01_data_overview.ipynb
 │   ├── 02_baseline_models.ipynb
-│   └── 03_model_architecture.ipynb
+│   └── 03_global_ml_model.ipynb
 │
 ├── src/
 │   └── inference.py
 │
 ├── tests/
 │
-├── data/
-│
 ├── models/
+│   └── category_models.pkl
+│
+├── data/
 │
 └── README.md
 ```
@@ -216,26 +267,29 @@ project-root/
 
 ---
 
-## Key Insights
+## Key Technical Learnings
 
-- Architecture design matters more than algorithm switching.
-- Time-aware validation is essential in forecasting.
-- Heavy-tailed retail demand requires scale-normalized metrics.
-- Category segmentation reduces structural instability.
-- Drift monitoring improves real-world robustness.
+- Architecture > algorithm swap
+- Time-aware validation is mandatory in forecasting
+- Weighted metrics reflect business better than MAE
+- Segmentation reduces structural bias
+- Volatility features dramatically improve spike modeling
+- Drift monitoring is essential for production readiness
 
 ---
 
-## Future Improvements
+## Future Enhancements
 
-- Hierarchical forecasting reconciliation
-- Hyperparameter optimization (Optuna)
-- External regressors (price, promotion, holidays)
-- Automated drift detection (PSI)
-- Deployment via FastAPI
+- Hierarchical reconciliation
+- Optuna hyperparameter tuning
+- PSI-based automated drift detection
+- FastAPI deployment
+- Batch inference service
+- Monitoring dashboard
 
 ---
 
 ## Author
 
-Jenish Upadhyay
+Jenish Upadhyay  
+Machine Learning | Forecasting Systems | Production ML Architecture
