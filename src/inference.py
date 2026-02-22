@@ -3,10 +3,7 @@ import numpy as np
 import pandas as pd
 import os
 
-
-# ------------------------------------------------------------
 # Load Model Artifacts
-# ------------------------------------------------------------
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "category_models.pkl")
@@ -20,9 +17,7 @@ if not os.path.exists(MODEL_PATH):
 category_models = joblib.load(MODEL_PATH)
 
 
-# ------------------------------------------------------------
 # Utility: Build Feature Row in Correct Order
-# ------------------------------------------------------------
 
 def build_feature_row(input_dict, feature_columns):
 
@@ -37,27 +32,11 @@ def build_feature_row(input_dict, feature_columns):
     return pd.DataFrame([row])
 
 
-# ------------------------------------------------------------
 # Prediction Function
-# ------------------------------------------------------------
 
 def predict(input_features: dict) -> float:
-    """
-    Predict demand for a single input feature dictionary.
 
-    Required:
-        - Exactly one Product_Category dummy column set to 1
-        - Lag features
-        - Rolling features
-        - Calendar features
-
-    Returns:
-        Non-negative demand forecast (float)
-    """
-
-    # ------------------------
     # Input Validation
-    # ------------------------
 
     if not isinstance(input_features, dict):
         raise TypeError("Input must be a dictionary.")
@@ -77,9 +56,7 @@ def predict(input_features: dict) -> float:
         if feat not in input_features:
             raise ValueError(f"Missing required feature: {feat}")
 
-    # ------------------------
     # Category Identification
-    # ------------------------
 
     category_cols = [
         key for key in input_features
@@ -105,15 +82,11 @@ def predict(input_features: dict) -> float:
 
     feature_columns = model.feature_name_
 
-    # ------------------------
     # Build Feature Row
-    # ------------------------
 
     feature_row = build_feature_row(input_features, feature_columns)
 
-    # ------------------------
     # Prediction
-    # ------------------------
 
     pred_log = model.predict(feature_row)
     pred_actual = np.expm1(pred_log)
@@ -124,9 +97,7 @@ def predict(input_features: dict) -> float:
     return final_prediction
 
 
-# ------------------------------------------------------------
 # Example Usage
-# ------------------------------------------------------------
 
 if __name__ == "__main__":
 
@@ -139,9 +110,7 @@ if __name__ == "__main__":
     # Start with all zeros
     sample_input = {feature: 0 for feature in feature_columns}
 
-    # ------------------------
     # Populate realistic numeric values
-    # ------------------------
 
     sample_input["lag_1"] = 25000
     sample_input["lag_7"] = 22000
@@ -159,9 +128,7 @@ if __name__ == "__main__":
     sample_input["quarter"] = 4
     sample_input["is_weekend"] = 1
 
-    # ------------------------
     # Set exactly one warehouse dummy to 1
-    # ------------------------
 
     for col in feature_columns:
         if col.startswith("Warehouse_"):
@@ -171,9 +138,7 @@ if __name__ == "__main__":
     if warehouse_cols:
         sample_input[warehouse_cols[0]] = 1
 
-    # ------------------------
     # Set exactly one category dummy to 1
-    # ------------------------
 
     for col in feature_columns:
         if col.startswith("Product_Category_"):
@@ -181,9 +146,7 @@ if __name__ == "__main__":
 
     sample_input[example_category] = 1
 
-    # ------------------------
     # Predict
-    # ------------------------
 
     prediction = predict(sample_input)
 

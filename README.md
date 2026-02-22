@@ -212,7 +212,7 @@ sample_input = {
 Output:
 
 ```
-Predicted Demand: XXXX
+Predicted Demand: 1383.417578962056
 ```
 
 ---
